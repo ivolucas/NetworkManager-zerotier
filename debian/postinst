@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    echo "network-manager-zerotier: restart NetworkManager to pick up the new" >&2
+    echo "VPN plugin, e.g.: sudo systemctl restart NetworkManager" >&2
+fi
+
+#DEBHELPER#
+
+exit 0

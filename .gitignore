@@ -1,0 +1,15 @@
+build/
+*.o
+*.so
+*.gresource
+*.swp
+
+# Debian packaging build artifacts (dpkg-buildpackage output)
+obj-*/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.debhelper.log
+debian/*.substvars
+debian/network-manager-zerotier/
+debian/network-manager-zerotier-dbgsym/

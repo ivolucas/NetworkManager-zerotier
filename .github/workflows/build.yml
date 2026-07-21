@@ -1,0 +1,22 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  meson-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build libnm-dev libgtk-4-dev \
+            libjson-glib-dev network-manager-dev pkg-config
+      - name: Configure
+        run: meson setup build --prefix=/usr
+      - name: Build
+        run: ninja -C build
+      - name: Test
+        run: meson test -C build

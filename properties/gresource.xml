@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/zerotier/nm">
+    <file>nm-connection-editor.ui</file>
+  </gresource>
+</gresources>

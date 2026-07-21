@@ -1,0 +1,1 @@
+option('gtk4', type: 'boolean', value: true, description: 'Build the GTK4 connection editor plugin')

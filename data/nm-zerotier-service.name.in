@@ -1,0 +1,13 @@
+[VPN Connection]
+name=zerotier
+service=@NM_DBUS_SERVICE_ZEROTIER@
+program=@LIBEXECDIR@/nm-zerotier-service
+supports-multiple-connections=true
+
+[libnm]
+plugin=libnm-vpn-plugin-zerotier.so
+
+[GNOME]
+auth-dialog=@LIBEXECDIR@/nm-zerotier-auth-dialog
+supports-external-ui-mode=true
+supports-hints=true

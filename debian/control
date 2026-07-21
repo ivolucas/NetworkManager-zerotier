@@ -1,0 +1,29 @@
+Source: network-manager-zerotier
+Section: net
+Priority: optional
+Maintainer: Ivo Lucas <ivolucas@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               meson,
+               ninja-build,
+               pkg-config,
+               libnm-dev,
+               libgtk-4-dev,
+               libjson-glib-dev,
+               network-manager-dev
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: network-manager-zerotier
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         network-manager (>= 1.2.0),
+         zerotier-one
+Description: NetworkManager VPN plugin for ZeroTier
+ Lets ZeroTier networks be joined and left as VPN connections through
+ NetworkManager, nmcli, and GNOME Settings, the same way OpenVPN or
+ OpenConnect connections are managed.
+ .
+ This plugin does not implement any tunneling itself - it talks to the
+ already-running system zerotier-one daemon to join/leave networks and
+ reports the resulting interface and addresses back to NetworkManager.
