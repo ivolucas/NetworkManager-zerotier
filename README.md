@@ -59,6 +59,11 @@ Produces `../network-manager-zerotier_<version>_amd64.deb`, installable with
 `apt-get install -f` to pull in dependencies). Restart NetworkManager afterwards to pick
 up the new plugin, as the postinst script will remind you to do.
 
+CI (`.github/workflows/build.yml`) builds and tests this on both Ubuntu 22.04 and 24.04
+(their `libnm`/`glib`/`gtk4`/`systemd` versions differ enough that a single `.deb` can't
+target both). Pushing a `v*` tag additionally attaches both `.deb`s to that tag's GitHub
+release automatically.
+
 ## Usage
 
 ```sh
