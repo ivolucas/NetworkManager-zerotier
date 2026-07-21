@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Creates a NetworkManager VPN connection (vpn-type=zerotier) for every
 # ZeroTier network already joined via zerotier-cli (e.g. joined manually, by
-# the zerotier-gnome-indicator extension, or before this plugin existed), so
-# they show up in `nmcli connection show` / GNOME Settings without having to
-# add each one by hand. Safe to re-run: networks that already have a
-# matching NetworkManager connection (matched by network id, not name) are
-# skipped.
+# another tool, or before this plugin existed), so they show up in
+# `nmcli connection show` / GNOME Settings without having to add each one by
+# hand. Safe to re-run: networks that already have a matching NetworkManager
+# connection (matched by network id, not name) are skipped.
 set -euo pipefail
 
 if ! command -v jq >/dev/null 2>&1; then

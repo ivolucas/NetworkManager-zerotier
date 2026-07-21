@@ -12,10 +12,14 @@ network-manager-zerotier (0.2.0) UNRELEASED; urgency=medium
   * Remove the previous one-directional, per-connection 15s drift monitor
     from nm-zerotier-plugin.c; nm-zerotier-reconciled is now the single
     source of truth for ongoing reconciliation.
-  * New build dependency: systemd-dev (for the systemd unit install
-    directory).
+  * New build dependency on systemd.pc: systemd-dev | systemd (the
+    alternative covers Ubuntu 22.04, where systemd.pc ships inside the
+    base systemd package instead of a separate systemd-dev package).
+  * CI (.github/workflows/build.yml) now builds and tests on a matrix of
+    Ubuntu 24.04 and 22.04, and builds/lints a .deb for each. Pushing a
+    v* tag additionally attaches both .debs to that tag's GitHub release.
 
- -- Ivo Lucas <ivolucas@gmail.com>  Tue, 21 Jul 2026 15:41:56 +0100
+ -- Ivo Lucas <ivolucas@gmail.com>  Tue, 21 Jul 2026 16:19:01 +0100
 
 network-manager-zerotier (0.1.2) UNRELEASED; urgency=medium
 

@@ -31,6 +31,8 @@ resulting interface and assigned addresses back to NetworkManager.
 - NetworkManager + `libnm` (development headers: `libnm-dev` / `NetworkManager-libnm-devel`)
 - GTK4 (`libgtk-4-dev`)
 - `json-glib` (`libjson-glib-dev`)
+- `systemd.pc` (pkg-config): `systemd-dev` package on Ubuntu 24.04+; ships inside the base
+  `systemd` package on Ubuntu 22.04, nothing extra to install there
 - `zerotier-one` / `zerotier-cli` installed and running
 
 ## Building
@@ -107,10 +109,9 @@ installed.
 - **Disconnecting this VPN connection runs `zerotier-cli leave`, which removes the
   network from the entire machine's `zerotier-one` daemon state — not just this
   NetworkManager connection's view of it.** If the same ZeroTier network is also managed
-  by the [`zerotier-gnome-indicator`](https://codeberg.org/anantmk/zerotier-gnome-indicator)
-  GNOME Shell extension, or by another user session on the same machine, disconnecting
-  here disconnects it for them too. ZeroTier network membership is global to the host,
-  while NetworkManager's VPN model assumes each connection profile owns its tunnel
+  by another tool, or by another user session on the same machine, disconnecting here
+  disconnects it for them too. ZeroTier network membership is global to the host, while
+  NetworkManager's VPN model assumes each connection profile owns its tunnel
   exclusively. Avoid running both against the same network at once.
 - GTK4 editor only; no GTK3 build for older `nm-connection-editor` versions.
 
