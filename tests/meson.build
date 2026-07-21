@@ -10,3 +10,15 @@ test_zerotier_cli_wrapper = executable(
 )
 
 test('zerotier-cli-wrapper', test_zerotier_cli_wrapper)
+
+test_zerotier_reconcile_diff = executable(
+  'test-zerotier-reconcile-diff',
+  [
+    'test-zerotier-reconcile-diff.c',
+    '../reconciled/nm-zerotier-reconcile-diff.c',
+  ],
+  include_directories: include_directories('../reconciled'),
+  dependencies: [glib_dep],
+)
+
+test('zerotier-reconcile-diff', test_zerotier_reconcile_diff)
