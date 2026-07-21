@@ -10,7 +10,6 @@
 
 #define POLL_INTERVAL_MS  500
 #define CONNECT_TIMEOUT_S  30
-#define MONITOR_INTERVAL_S  15
 
 /* All zerotier-cli invocations block on a subprocess + local socket
  * round-trip (zt_cli_run() uses g_spawn_sync()). NetworkManager calls our
@@ -27,8 +26,6 @@ struct _NMZerotierPlugin {
     gint64   deadline_us;
     gboolean poll_in_flight;
     gboolean allow_default;
-    guint    monitor_source_id;
-    gboolean monitor_in_flight;
 };
 
 G_DEFINE_TYPE(NMZerotierPlugin, nm_zerotier_plugin, NM_TYPE_VPN_SERVICE_PLUGIN)
@@ -41,20 +38,6 @@ cancel_poll(NMZerotierPlugin *self)
         self->poll_source_id = 0;
     }
 }
-
-static void
-cancel_monitor(NMZerotierPlugin *self)
-{
-    if (self->monitor_source_id) {
-        g_source_remove(self->monitor_source_id);
-        self->monitor_source_id = 0;
-    }
-}
-
-/* Defined further down (it needs poll_thread_func, defined later still);
- * forward-declared here since poll_task_finished_cb calls it and comes
- * first in the file. */
-static void start_monitor(NMZerotierPlugin *self);
 
 /* Adds "address"/"prefix" (v4) or "address"/"prefix" (v6) to a{sv} builder
  * for the given "ip/prefixlen" CIDR string. Returns the address family found,
@@ -237,7 +220,6 @@ poll_task_finished_cb(GObject *source, GAsyncResult *res, gpointer user_data)
     if (ready) {
         report_ip_config(self, info);
         cancel_poll(self);
-        start_monitor(self);
     }
 
     zt_network_info_free(info);
@@ -268,79 +250,6 @@ poll_tick_cb(gpointer user_data)
     g_object_unref(task);
 
     return G_SOURCE_CONTINUE;
-}
-
-/* --- monitor: after a successful connect, keep checking (much more slowly
- * than the connect-time poll above) that the network is still joined.
- * ZeroTier network membership is global to the zerotier-one daemon, not
- * owned by this connection - someone can run `zerotier-cli leave` directly,
- * or another tool (the zerotier-gnome-indicator extension, a script) can do
- * it behind NetworkManager's back. Without this, NM would keep showing the
- * connection as active indefinitely after that happens. We only treat the
- * network disappearing from `zerotier-cli listnetworks` entirely as
- * drift - a transient status hiccup (e.g. briefly OFFLINE) is not reason
- * enough to tear down the connection, since NM has no cheap way to
- * reconnect other than the user doing it manually. --- */
-
-static void
-monitor_task_finished_cb(GObject *source, GAsyncResult *res, gpointer user_data)
-{
-    NMZerotierPlugin *self = NM_ZEROTIER_PLUGIN(source);
-
-    (void) user_data;
-    self->monitor_in_flight = FALSE;
-
-    /* Already disconnected (deliberately, or by the connect-timeout path)
-     * while this task was in flight - nothing to do with a late result. */
-    if (!self->monitor_source_id)
-        return;
-
-    GError        *error = NULL;
-    ZtNetworkInfo *info = g_task_propagate_pointer(G_TASK(res), &error);
-
-    if (error) {
-        g_debug("zerotier: transient error monitoring network status: %s", error->message);
-        g_clear_error(&error);
-        return;
-    }
-
-    if (info) {
-        zt_network_info_free(info);
-        return;
-    }
-
-    g_warning("zerotier: network %s is no longer joined (left outside NetworkManager) - "
-             "reporting the VPN connection as failed",
-             self->network_id);
-    cancel_monitor(self);
-    nm_vpn_service_plugin_failure(NM_VPN_SERVICE_PLUGIN(self), NM_VPN_PLUGIN_FAILURE_CONNECT_FAILED);
-}
-
-static gboolean
-monitor_tick_cb(gpointer user_data)
-{
-    NMZerotierPlugin *self = NM_ZEROTIER_PLUGIN(user_data);
-
-    if (self->monitor_in_flight)
-        return G_SOURCE_CONTINUE; /* previous check still running on its worker thread */
-
-    self->monitor_in_flight = TRUE;
-
-    GTask *task = g_task_new(self, NULL, monitor_task_finished_cb, NULL);
-    g_task_set_task_data(task, g_strdup(self->network_id), g_free);
-    g_task_run_in_thread(task, poll_thread_func); /* same "find this network" lookup */
-    g_object_unref(task);
-
-    return G_SOURCE_CONTINUE;
-}
-
-static void
-start_monitor(NMZerotierPlugin *self)
-{
-    cancel_monitor(self);
-    self->monitor_in_flight = FALSE;
-    self->monitor_source_id =
-        g_timeout_add_seconds(MONITOR_INTERVAL_S, monitor_tick_cb, self);
 }
 
 /* --- connect: join (+ optional allowDefault) run on a worker thread --- */
@@ -507,7 +416,6 @@ real_disconnect(NMVpnServicePlugin *plugin, GError **error)
     NMZerotierPlugin *self = NM_ZEROTIER_PLUGIN(plugin);
 
     cancel_poll(self);
-    cancel_monitor(self);
 
     if (self->network_id) {
         GTask *task = g_task_new(self, NULL, leave_task_finished_cb, NULL);
@@ -547,8 +455,6 @@ nm_zerotier_plugin_init(NMZerotierPlugin *self)
     self->poll_source_id = 0;
     self->poll_in_flight = FALSE;
     self->allow_default = FALSE;
-    self->monitor_source_id = 0;
-    self->monitor_in_flight = FALSE;
 }
 
 static void
@@ -557,7 +463,6 @@ dispose(GObject *object)
     NMZerotierPlugin *self = NM_ZEROTIER_PLUGIN(object);
 
     cancel_poll(self);
-    cancel_monitor(self);
     g_clear_pointer(&self->network_id, g_free);
 
     G_OBJECT_CLASS(nm_zerotier_plugin_parent_class)->dispose(object);
