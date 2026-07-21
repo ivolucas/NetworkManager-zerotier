@@ -45,25 +45,30 @@ jobs:
       - name: Install packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debhelper lintian meson ninja-build pkg-config \
-            libnm-dev libgtk-4-dev libjson-glib-dev network-manager-dev ${{ matrix.systemd_dev_pkg }}
+          sudo apt-get install -y build-essential debhelper lintian meson ninja-build \
+            pkg-config libnm-dev libgtk-4-dev libjson-glib-dev network-manager-dev \
+            ${{ matrix.systemd_dev_pkg }}
       - name: Build .deb
         run: dpkg-buildpackage -us -uc -b
       - name: Lint .deb
         run: lintian ../*.deb || true
-      - name: Rename .deb to include the target Ubuntu release
-        # The package version is the same across matrix entries, so without
-        # this both builds would produce identically-named files - silently
-        # colliding when merged into one artifact/release.
+      - name: Stage .deb into the workspace
+        # dpkg-buildpackage places its output one directory above the
+        # checkout, which actions/upload-artifact@v4 refuses to reference
+        # directly (no `..` in path patterns). Renaming also disambiguates
+        # the two matrix builds, which otherwise produce identically-named
+        # files (same Debian version) that would collide when merged
+        # together for the release job.
         run: |
+          mkdir -p dist
           for f in ../*.deb; do
-            mv "$f" "${f%.deb}-${{ matrix.os }}.deb"
+            mv "$f" "dist/$(basename "${f%.deb}")-${{ matrix.os }}.deb"
           done
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: network-manager-zerotier-deb-${{ matrix.os }}
-          path: ../*.deb
+          path: dist/*.deb
 
   release:
     needs: deb-build
