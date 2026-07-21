@@ -1,0 +1,13 @@
+[Unit]
+Description=NetworkManager ZeroTier bidirectional reconciliation daemon
+After=NetworkManager.service zerotier-one.service
+Wants=NetworkManager.service zerotier-one.service
+
+[Service]
+Type=simple
+ExecStart=@LIBEXECDIR@/nm-zerotier-reconciled
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

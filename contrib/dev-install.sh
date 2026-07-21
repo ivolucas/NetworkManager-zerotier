@@ -11,6 +11,9 @@ meson setup --reconfigure build --prefix=/usr
 ninja -C build
 sudo ninja -C build install
 sudo systemctl restart NetworkManager
+sudo systemctl daemon-reload
+sudo systemctl enable --now nm-zerotier-reconciled
+sudo systemctl restart nm-zerotier-reconciled
 
 echo
 echo "Installed. Try:"
