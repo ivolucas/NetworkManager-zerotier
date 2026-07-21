@@ -21,6 +21,17 @@ test_parse_networks_json(void)
         "{"
         "\"nwid\": \"8056c2e21c000001\","
         "\"name\": \"test-net\","
+        "\"type\": \"PRIVATE\","
+        "\"mac\": \"0e:f9:56:9d:f7:09\","
+        "\"mtu\": 2800,"
+        "\"bridge\": false,"
+        "\"broadcastEnabled\": true,"
+        "\"allowManaged\": true,"
+        "\"allowGlobal\": false,"
+        "\"allowDefault\": false,"
+        "\"allowDNS\": false,"
+        "\"routes\": [{\"target\": \"10.1.0.0/24\", \"via\": null}, "
+        "{\"target\": \"0.0.0.0/0\", \"via\": \"10.1.0.1\"}],"
         "\"status\": \"OK\","
         "\"portDeviceName\": \"ztabcdefgh\","
         "\"assignedAddresses\": [\"10.1.2.3/24\", \"fd00::1/88\"]"
@@ -47,6 +58,19 @@ test_parse_networks_json(void)
     g_assert_cmpuint(net0->assigned_addresses->len, ==, 2);
     g_assert_cmpstr(g_ptr_array_index(net0->assigned_addresses, 0), ==, "10.1.2.3/24");
     g_assert_cmpstr(g_ptr_array_index(net0->assigned_addresses, 1), ==, "fd00::1/88");
+    g_assert_cmpstr(net0->name, ==, "test-net");
+    g_assert_cmpstr(net0->type, ==, "PRIVATE");
+    g_assert_cmpstr(net0->mac, ==, "0e:f9:56:9d:f7:09");
+    g_assert_cmpint(net0->mtu, ==, 2800);
+    g_assert_false(net0->bridge);
+    g_assert_true(net0->broadcast_enabled);
+    g_assert_true(net0->allow_managed);
+    g_assert_false(net0->allow_global);
+    g_assert_false(net0->allow_default);
+    g_assert_false(net0->allow_dns);
+    g_assert_cmpuint(net0->routes->len, ==, 2);
+    g_assert_cmpstr(g_ptr_array_index(net0->routes, 0), ==, "10.1.0.0/24");
+    g_assert_cmpstr(g_ptr_array_index(net0->routes, 1), ==, "0.0.0.0/0 via 10.1.0.1");
 
     ZtNetworkInfo *net1 = g_ptr_array_index(networks, 1);
     g_assert_cmpstr(net1->status, ==, "NOT_JOINED");

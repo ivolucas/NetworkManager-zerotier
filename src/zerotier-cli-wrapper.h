@@ -20,6 +20,20 @@ typedef struct {
     char     *status;            /* e.g. "OK", "NOT_JOINED", "REQUESTING_CONFIGURATION" */
     char     *port_device_name;  /* e.g. "ztXXXXXXXX", may be empty */
     GPtrArray *assigned_addresses; /* array of owned "a.b.c.d/nn" or "ipv6/nn" strings */
+
+    /* Display-only fields (not used by the connect state machine, only by
+     * the editor's read-only status section). */
+    char      *name;              /* human-readable network name set on the controller */
+    char      *type;              /* "PRIVATE" or "PUBLIC" */
+    char      *mac;
+    int        mtu;
+    gboolean   bridge;
+    gboolean   broadcast_enabled;
+    gboolean   allow_managed;      /* zerotier-one's own local flags, distinct from */
+    gboolean   allow_global;       /* this plugin's NM_ZEROTIER_KEY_ALLOW_DEFAULT   */
+    gboolean   allow_default;      /* setting (which only maps to allowDefault)     */
+    gboolean   allow_dns;
+    GPtrArray *routes;             /* array of owned "target[ via nexthop]" strings */
 } ZtNetworkInfo;
 
 void zt_network_info_free(ZtNetworkInfo *info);

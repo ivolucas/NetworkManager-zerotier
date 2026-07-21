@@ -20,8 +20,13 @@ zt_network_info_free(ZtNetworkInfo *info)
     g_free(info->nwid);
     g_free(info->status);
     g_free(info->port_device_name);
+    g_free(info->name);
+    g_free(info->type);
+    g_free(info->mac);
     if (info->assigned_addresses)
         g_ptr_array_unref(info->assigned_addresses);
+    if (info->routes)
+        g_ptr_array_unref(info->routes);
     g_free(info);
 }
 
@@ -128,6 +133,50 @@ zt_network_info_from_json(JsonObject *obj)
         for (guint i = 0; i < len; i++)
             g_ptr_array_add(info->assigned_addresses,
                             g_strdup(json_array_get_string_element(addrs, i)));
+    }
+
+    info->name = g_strdup(json_object_has_member(obj, "name")
+                              ? json_object_get_string_member(obj, "name")
+                              : "");
+    info->type = g_strdup(json_object_has_member(obj, "type")
+                              ? json_object_get_string_member(obj, "type")
+                              : "");
+    info->mac = g_strdup(json_object_has_member(obj, "mac")
+                             ? json_object_get_string_member(obj, "mac")
+                             : "");
+    info->mtu = json_object_has_member(obj, "mtu")
+                    ? (int) json_object_get_int_member(obj, "mtu")
+                    : 0;
+    info->bridge =
+        json_object_has_member(obj, "bridge") && json_object_get_boolean_member(obj, "bridge");
+    info->broadcast_enabled = json_object_has_member(obj, "broadcastEnabled")
+                                  && json_object_get_boolean_member(obj, "broadcastEnabled");
+    info->allow_managed = json_object_has_member(obj, "allowManaged")
+                              && json_object_get_boolean_member(obj, "allowManaged");
+    info->allow_global = json_object_has_member(obj, "allowGlobal")
+                             && json_object_get_boolean_member(obj, "allowGlobal");
+    info->allow_default = json_object_has_member(obj, "allowDefault")
+                              && json_object_get_boolean_member(obj, "allowDefault");
+    info->allow_dns = json_object_has_member(obj, "allowDNS")
+                          && json_object_get_boolean_member(obj, "allowDNS");
+
+    info->routes = g_ptr_array_new_with_free_func(g_free);
+    if (json_object_has_member(obj, "routes")) {
+        JsonArray *routes = json_object_get_array_member(obj, "routes");
+        guint      len = json_array_get_length(routes);
+        for (guint i = 0; i < len; i++) {
+            JsonObject *route = json_array_get_object_element(routes, i);
+            if (!route || !json_object_has_member(route, "target"))
+                continue;
+            const char *target = json_object_get_string_member(route, "target");
+            JsonNode   *via_node =
+                json_object_has_member(route, "via") ? json_object_get_member(route, "via") : NULL;
+            const char *via = (via_node && json_node_get_value_type(via_node) == G_TYPE_STRING)
+                                  ? json_node_get_string(via_node)
+                                  : NULL;
+            g_ptr_array_add(info->routes,
+                            via ? g_strdup_printf("%s via %s", target, via) : g_strdup(target));
+        }
     }
 
     return info;
