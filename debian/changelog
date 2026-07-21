@@ -1,3 +1,22 @@
+network-manager-zerotier (0.2.0) UNRELEASED; urgency=medium
+
+  * Add nm-zerotier-reconciled, a persistent systemd service that
+    continuously reconciles NetworkManager's view of ZeroTier VPN
+    connections against zerotier-one's actual joined-network state in
+    both directions: activates the matching NM connection when a network
+    is joined externally (e.g. via zerotier-cli or another tool), and
+    deactivates it when left externally. Networks joined externally with
+    no matching NM connection profile at all are imported automatically
+    once their tun interface exists, same as
+    contrib/import-zerotier-networks.sh.
+  * Remove the previous one-directional, per-connection 15s drift monitor
+    from nm-zerotier-plugin.c; nm-zerotier-reconciled is now the single
+    source of truth for ongoing reconciliation.
+  * New build dependency: systemd-dev (for the systemd unit install
+    directory).
+
+ -- Ivo Lucas <ivolucas@gmail.com>  Tue, 21 Jul 2026 15:41:56 +0100
+
 network-manager-zerotier (0.1.2) UNRELEASED; urgency=medium
 
   * Expand the editor's read-only "ZeroTier status" section with name,

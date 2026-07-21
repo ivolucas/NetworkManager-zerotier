@@ -10,6 +10,7 @@ debian/.debhelper/
 debian/debhelper-build-stamp
 debian/files
 debian/*.debhelper.log
+debian/*.debhelper
 debian/*.substvars
 debian/network-manager-zerotier/
 debian/network-manager-zerotier-dbgsym/

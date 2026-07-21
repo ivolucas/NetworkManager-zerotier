@@ -6,17 +6,87 @@ on:
 
 jobs:
   meson-build:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            systemd_dev_pkg: systemd-dev
+          - os: ubuntu-22.04
+            systemd_dev_pkg: "" # systemd.pc ships in the base `systemd` package on 22.04
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y meson ninja-build libnm-dev libgtk-4-dev \
-            libjson-glib-dev network-manager-dev pkg-config
+            libjson-glib-dev network-manager-dev pkg-config ${{ matrix.systemd_dev_pkg }}
       - name: Configure
         run: meson setup build --prefix=/usr
       - name: Build
         run: ninja -C build
       - name: Test
         run: meson test -C build
+
+  deb-build:
+    needs: meson-build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            systemd_dev_pkg: systemd-dev
+          - os: ubuntu-22.04
+            systemd_dev_pkg: "" # systemd.pc ships in the base `systemd` package on 22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper lintian meson ninja-build pkg-config \
+            libnm-dev libgtk-4-dev libjson-glib-dev network-manager-dev ${{ matrix.systemd_dev_pkg }}
+      - name: Build .deb
+        run: dpkg-buildpackage -us -uc -b
+      - name: Lint .deb
+        run: lintian ../*.deb || true
+      - name: Rename .deb to include the target Ubuntu release
+        # The package version is the same across matrix entries, so without
+        # this both builds would produce identically-named files - silently
+        # colliding when merged into one artifact/release.
+        run: |
+          for f in ../*.deb; do
+            mv "$f" "${f%.deb}-${{ matrix.os }}.deb"
+          done
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-manager-zerotier-deb-${{ matrix.os }}
+          path: ../*.deb
+
+  release:
+    needs: deb-build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download .deb artifacts (both Ubuntu releases)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: network-manager-zerotier-deb-*
+          path: dist
+          merge-multiple: true
+      - name: Attach .debs to the tag's GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.ref_name }}"
+          repo="${{ github.repository }}"
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.deb --repo "$repo" --clobber
+          else
+            gh release create "$tag" dist/*.deb --repo "$repo" --title "$tag" --generate-notes
+          fi
