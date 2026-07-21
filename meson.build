@@ -21,6 +21,7 @@ if build_gtk4
 endif
 
 subdir('src')
+subdir('reconciled')
 subdir('auth-dialog')
 subdir('data')
 if build_gtk4
