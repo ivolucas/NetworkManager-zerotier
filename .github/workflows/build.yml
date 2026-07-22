@@ -1,8 +1,41 @@
 name: build
 
+# `paths` only filters branch pushes, never tag pushes (GitHub Actions
+# doesn't apply path filtering to tag refs) - so a `v*` tag push always
+# triggers this workflow regardless of what it touches, which is what the
+# release job below needs, while ordinary branch pushes/PRs skip the build
+# entirely when they only touch docs/metadata.
 on:
   push:
+    paths:
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.h.in'
+      - '**/*.ui'
+      - '**/*.xml'
+      - '**/meson.build'
+      - 'meson_options.txt'
+      - '**/*.name.in'
+      - '**/*.service.in'
+      - '**/*.conf'
+      - 'debian/**'
+      - '.github/workflows/build.yml'
+    tags:
+      - 'v*'
   pull_request:
+    paths:
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.h.in'
+      - '**/*.ui'
+      - '**/*.xml'
+      - '**/meson.build'
+      - 'meson_options.txt'
+      - '**/*.name.in'
+      - '**/*.service.in'
+      - '**/*.conf'
+      - 'debian/**'
+      - '.github/workflows/build.yml'
 
 jobs:
   meson-build:
