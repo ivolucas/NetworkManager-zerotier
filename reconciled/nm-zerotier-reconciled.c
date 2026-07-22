@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "nm-zerotier-reconciler.h"
+#include "nm-zerotier-status-dbus.h"
 
 #include <glib-unix.h>
 #include <signal.h>
@@ -43,6 +44,7 @@ main(int argc, char *argv[])
     (void) debug;
 
     NMZerotierReconciler *reconciler = nm_zerotier_reconciler_new();
+    NMZerotierStatusDBus *status_dbus = nm_zerotier_status_dbus_new();
 
     GMainLoop *loop = g_main_loop_new(NULL, FALSE);
 
@@ -52,6 +54,7 @@ main(int argc, char *argv[])
     g_main_loop_run(loop);
 
     g_main_loop_unref(loop);
+    nm_zerotier_status_dbus_free(status_dbus);
     g_object_unref(reconciler);
 
     return 0;

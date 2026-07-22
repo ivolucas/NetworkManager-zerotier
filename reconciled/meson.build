@@ -4,6 +4,7 @@ executable(
     'nm-zerotier-reconciled.c',
     'nm-zerotier-reconciler.c',
     'nm-zerotier-reconcile-diff.c',
+    'nm-zerotier-status-dbus.c',
     '../src/zerotier-cli-wrapper.c',
     '../src/zerotier-network-id.c',
   ],

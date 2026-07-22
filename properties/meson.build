@@ -14,10 +14,9 @@ shared_module(
     'nm-zerotier-editor.c',
     zerotier_resources,
     '../src/zerotier-network-id.c',
-    '../src/zerotier-cli-wrapper.c',
   ],
   include_directories: include_directories('../src'),
-  dependencies: [libnm_dep, gtk4_dep, gmodule_dep, glib_dep, gio_dep, json_glib_dep],
+  dependencies: [libnm_dep, gtk4_dep, gmodule_dep, glib_dep, gio_dep],
   install: true,
   install_dir: nm_plugin_dir,
 )

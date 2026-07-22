@@ -22,3 +22,17 @@ test_zerotier_reconcile_diff = executable(
 )
 
 test('zerotier-reconcile-diff', test_zerotier_reconcile_diff)
+
+test_nm_zerotier_status_dbus = executable(
+  'test-nm-zerotier-status-dbus',
+  [
+    'test-nm-zerotier-status-dbus.c',
+    '../reconciled/nm-zerotier-status-dbus.c',
+    '../src/zerotier-cli-wrapper.c',
+    '../src/zerotier-network-id.c',
+  ],
+  include_directories: include_directories('../src', '../reconciled'),
+  dependencies: [glib_dep, gio_dep, json_glib_dep],
+)
+
+test('nm-zerotier-status-dbus', test_nm_zerotier_status_dbus)

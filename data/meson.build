@@ -15,6 +15,11 @@ install_data(
   install_dir: '/usr/share/dbus-1/system.d',
 )
 
+install_data(
+  'nm-zerotier-status.conf',
+  install_dir: '/usr/share/dbus-1/system.d',
+)
+
 systemd_dep = dependency('systemd')
 systemd_unit_dir = systemd_dep.get_variable(pkgconfig: 'systemdsystemunitdir')
 

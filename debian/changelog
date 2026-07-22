@@ -1,3 +1,16 @@
+network-manager-zerotier (1.0.0) UNRELEASED; urgency=medium
+
+  * nm-zerotier-reconciled now also serves a read-only GetNetworkStatus
+    D-Bus method on org.zerotier.nm.Status, and the connection editor's
+    "ZeroTier status" section queries it instead of shelling out to
+    zerotier-cli directly. The editor runs unprivileged in the user's
+    session and cannot read zerotier-one's root-owned authtoken.secret,
+    so the status section previously only worked if the user happened to
+    have a personal ~/.zeroTierOneAuthToken fallback file; it now works
+    for any user.
+
+ -- Ivo Lucas <ivolucas@gmail.com>  Wed, 22 Jul 2026 14:00:00 +0100
+
 network-manager-zerotier (0.2.0) UNRELEASED; urgency=medium
 
   * Add nm-zerotier-reconciled, a persistent systemd service that

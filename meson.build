@@ -1,5 +1,5 @@
 project('NetworkManager-zerotier', 'c',
-  version: '0.2.0',
+  version: '1.0.0',
   license: 'GPL-2.0-or-later',
   default_options: ['c_std=gnu11', 'warning_level=2'],
 )

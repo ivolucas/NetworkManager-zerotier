@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "nm-zerotier-editor.h"
+#include "nm-zerotier-status-defaults.h"
 #include "nm-zerotier-service-defaults.h"
-#include "zerotier-cli-wrapper.h"
 #include "zerotier-network-id.h"
 
 #include <gtk/gtk.h>
@@ -119,11 +119,78 @@ set_unavailable_labels(NMZerotierEditor *self, const char *reason)
     gtk_label_set_text(GTK_LABEL(self->features_value_label), "—");
 }
 
+static char *
+variant_dict_get_string(GVariant *dict, const char *key, const char *fallback)
+{
+    GVariant   *v = g_variant_lookup_value(dict, key, G_VARIANT_TYPE_STRING);
+    const char *s;
+    char       *out;
+
+    if (!v)
+        return g_strdup(fallback);
+    s = g_variant_get_string(v, NULL);
+    out = (s && *s) ? g_strdup(s) : g_strdup(fallback);
+    g_variant_unref(v);
+    return out;
+}
+
+static gint32
+variant_dict_get_int32(GVariant *dict, const char *key, gint32 fallback)
+{
+    GVariant *v = g_variant_lookup_value(dict, key, G_VARIANT_TYPE_INT32);
+    gint32    out;
+
+    if (!v)
+        return fallback;
+    out = g_variant_get_int32(v);
+    g_variant_unref(v);
+    return out;
+}
+
+static gboolean
+variant_dict_get_boolean(GVariant *dict, const char *key, gboolean fallback)
+{
+    GVariant *v = g_variant_lookup_value(dict, key, G_VARIANT_TYPE_BOOLEAN);
+    gboolean  out;
+
+    if (!v)
+        return fallback;
+    out = g_variant_get_boolean(v);
+    g_variant_unref(v);
+    return out;
+}
+
+/* Joins an "as" GVariant's elements with ", ", the GVariant-sourced
+ * equivalent of join_strings() above (which operates on a GPtrArray). */
+static char *
+variant_dict_get_strv_joined(GVariant *dict, const char *key, const char *empty_placeholder)
+{
+    GVariant     *v = g_variant_lookup_value(dict, key, G_VARIANT_TYPE_STRING_ARRAY);
+    const char  **strv;
+    gsize         n = 0;
+    char         *joined;
+
+    if (!v)
+        return g_strdup(empty_placeholder);
+
+    strv = g_variant_get_strv(v, &n);
+    joined = (n > 0) ? g_strjoinv(", ", (char **) strv) : g_strdup(empty_placeholder);
+    g_free(strv);
+    g_variant_unref(v);
+    return joined;
+}
+
 /* Read-only snapshot of the network's current state, fetched synchronously
- * (a local zerotier-cli round-trip, typically well under 100ms) once when
- * the dialog opens - not live-updated while it stays open. Only meaningful
- * for an existing connection with a valid network id; a brand-new,
- * not-yet-saved connection has nothing to report. */
+ * via a system-bus call to org.zerotier.nm.Status's GetNetworkStatus method
+ * once when the dialog opens - not live-updated while it stays open. Only
+ * meaningful for an existing connection with a valid network id; a
+ * brand-new, not-yet-saved connection has nothing to report.
+ *
+ * This editor runs unprivileged in the user's session and can't read
+ * zerotier-one's authtoken.secret (mode 600, root-owned) itself, so it asks
+ * the status service (hosted inside nm-zerotier-reconciled, which already
+ * runs continuously as root) rather than shelling out to zerotier-cli
+ * directly. */
 static void
 populate_status_section(NMZerotierEditor *self, const char *network_id)
 {
@@ -134,54 +201,85 @@ populate_status_section(NMZerotierEditor *self, const char *network_id)
 
     gtk_widget_set_visible(self->status_section, TRUE);
 
-    GError        *error = NULL;
-    ZtNetworkInfo *info = zt_cli_find_network(network_id, &error);
+    GError          *error = NULL;
+    GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, &error);
 
-    if (error) {
+    if (!bus) {
         set_unavailable_labels(self, "Unavailable");
         gtk_label_set_text(GTK_LABEL(self->addresses_value_label), error->message);
         g_clear_error(&error);
         return;
     }
 
-    if (!info) {
-        set_unavailable_labels(self, "Not currently joined");
+    GVariant *reply = g_dbus_connection_call_sync(
+        bus, NM_ZEROTIER_STATUS_BUS_NAME, NM_ZEROTIER_STATUS_OBJECT_PATH,
+        NM_ZEROTIER_STATUS_IFACE_NAME, "GetNetworkStatus", g_variant_new("(s)", network_id),
+        G_VARIANT_TYPE("(ba{sv})"), G_DBUS_CALL_FLAGS_NONE, 5000, NULL, &error);
+
+    g_object_unref(bus);
+
+    if (!reply) {
+        const char *detail = error->message;
+
+        if (g_dbus_error_is_remote_error(error)) {
+            g_dbus_error_strip_remote_error(error);
+            detail = error->message;
+        } else if (g_error_matches(error, G_DBUS_ERROR, G_DBUS_ERROR_SERVICE_UNKNOWN)
+                   || g_error_matches(error, G_DBUS_ERROR, G_DBUS_ERROR_NAME_HAS_NO_OWNER)) {
+            detail = "ZeroTier status service is not running";
+        } else if (g_error_matches(error, G_DBUS_ERROR, G_DBUS_ERROR_TIMEOUT)) {
+            detail = "ZeroTier status service did not respond";
+        }
+        set_unavailable_labels(self, "Unavailable");
+        gtk_label_set_text(GTK_LABEL(self->addresses_value_label), detail);
+        g_clear_error(&error);
         return;
     }
 
-    gtk_label_set_text(GTK_LABEL(self->name_value_label),
-                       (info->name && *info->name) ? info->name : "—");
-    gtk_label_set_text(GTK_LABEL(self->type_value_label),
-                       (info->type && *info->type) ? info->type : "—");
-    gtk_label_set_text(GTK_LABEL(self->status_value_label),
-                       (info->status && *info->status) ? info->status : "Unknown");
-    gtk_label_set_text(GTK_LABEL(self->interface_value_label),
-                       (info->port_device_name && *info->port_device_name)
-                           ? info->port_device_name
-                           : "—");
-    gtk_label_set_text(GTK_LABEL(self->mac_value_label),
-                       (info->mac && *info->mac) ? info->mac : "—");
+    gboolean  found = FALSE;
+    GVariant *info_dict = NULL;
+    g_variant_get(reply, "(b@a{sv})", &found, &info_dict);
 
-    char *mtu_text = g_strdup_printf("%d", info->mtu);
+    if (!found) {
+        set_unavailable_labels(self, "Not currently joined");
+        g_variant_unref(info_dict);
+        g_variant_unref(reply);
+        return;
+    }
+
+    char   *name = variant_dict_get_string(info_dict, "name", "—");
+    char   *type = variant_dict_get_string(info_dict, "type", "—");
+    char   *status = variant_dict_get_string(info_dict, "status", "Unknown");
+    char   *iface = variant_dict_get_string(info_dict, "port_device_name", "—");
+    char   *mac = variant_dict_get_string(info_dict, "mac", "—");
+    gint32  mtu = variant_dict_get_int32(info_dict, "mtu", 0);
+
+    gtk_label_set_text(GTK_LABEL(self->name_value_label), name);
+    gtk_label_set_text(GTK_LABEL(self->type_value_label), type);
+    gtk_label_set_text(GTK_LABEL(self->status_value_label), status);
+    gtk_label_set_text(GTK_LABEL(self->interface_value_label), iface);
+    gtk_label_set_text(GTK_LABEL(self->mac_value_label), mac);
+
+    char *mtu_text = g_strdup_printf("%d", mtu);
     gtk_label_set_text(GTK_LABEL(self->mtu_value_label), mtu_text);
     g_free(mtu_text);
 
-    char *addresses_text = join_strings(info->assigned_addresses, "—");
+    char *addresses_text = variant_dict_get_strv_joined(info_dict, "assigned_addresses", "—");
     gtk_label_set_text(GTK_LABEL(self->addresses_value_label), addresses_text);
     g_free(addresses_text);
 
-    char *routes_text = join_strings(info->routes, "—");
+    char *routes_text = variant_dict_get_strv_joined(info_dict, "routes", "—");
     gtk_label_set_text(GTK_LABEL(self->routes_value_label), routes_text);
     g_free(routes_text);
 
     GPtrArray *permissions = g_ptr_array_new();
-    if (info->allow_managed)
+    if (variant_dict_get_boolean(info_dict, "allow_managed", FALSE))
         g_ptr_array_add(permissions, (gpointer) "Managed");
-    if (info->allow_global)
+    if (variant_dict_get_boolean(info_dict, "allow_global", FALSE))
         g_ptr_array_add(permissions, (gpointer) "Global");
-    if (info->allow_default)
+    if (variant_dict_get_boolean(info_dict, "allow_default", FALSE))
         g_ptr_array_add(permissions, (gpointer) "Default route");
-    if (info->allow_dns)
+    if (variant_dict_get_boolean(info_dict, "allow_dns", FALSE))
         g_ptr_array_add(permissions, (gpointer) "DNS");
     char *permissions_text = join_strings(permissions, "None");
     gtk_label_set_text(GTK_LABEL(self->permissions_value_label), permissions_text);
@@ -189,16 +287,22 @@ populate_status_section(NMZerotierEditor *self, const char *network_id)
     g_ptr_array_unref(permissions);
 
     GPtrArray *features = g_ptr_array_new();
-    if (info->bridge)
+    if (variant_dict_get_boolean(info_dict, "bridge", FALSE))
         g_ptr_array_add(features, (gpointer) "Bridge");
-    if (info->broadcast_enabled)
+    if (variant_dict_get_boolean(info_dict, "broadcast_enabled", FALSE))
         g_ptr_array_add(features, (gpointer) "Broadcast");
     char *features_text = join_strings(features, "None");
     gtk_label_set_text(GTK_LABEL(self->features_value_label), features_text);
     g_free(features_text);
     g_ptr_array_unref(features);
 
-    zt_network_info_free(info);
+    g_free(name);
+    g_free(type);
+    g_free(status);
+    g_free(iface);
+    g_free(mac);
+    g_variant_unref(info_dict);
+    g_variant_unref(reply);
 }
 
 static void
