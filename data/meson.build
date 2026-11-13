@@ -2,6 +2,18 @@ name_conf = configuration_data()
 name_conf.set('NM_DBUS_SERVICE_ZEROTIER', 'org.freedesktop.NetworkManager.zerotier')
 name_conf.set('LIBEXECDIR', libexecdir)
 
+# The [libnm] editor plugin and [GNOME] auth-dialog only exist in GTK
+# builds; omit those sections otherwise so the .name file doesn't
+# reference files that aren't installed.
+libnm_section = ''
+gnome_section = ''
+if build_gtk4
+  libnm_section = '\n[libnm]\nplugin=libnm-vpn-plugin-zerotier.so\n'
+  gnome_section = '\n[GNOME]\nauth-dialog=@0@/nm-zerotier-auth-dialog\nsupports-external-ui-mode=true\nsupports-hints=true'.format(libexecdir)
+endif
+name_conf.set('LIBNM_SECTION', libnm_section)
+name_conf.set('GNOME_SECTION', gnome_section)
+
 configure_file(
   input: 'nm-zerotier-service.name.in',
   output: 'nm-zerotier-service.name',
