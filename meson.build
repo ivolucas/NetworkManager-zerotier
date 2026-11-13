@@ -10,7 +10,12 @@ glib_dep = dependency('glib-2.0')
 json_glib_dep = dependency('json-glib-1.0')
 
 vpnservicedir = libnm_dep.get_variable(pkgconfig: 'vpnservicedir', default_value: '/usr/lib/NetworkManager/VPN')
-nm_plugin_dir = libnm_dep.get_variable(pkgconfig: 'plugindir', default_value: '/usr/lib/NetworkManager')
+# Some distros (e.g. Fedora) don't define libnm's "plugindir" pkg-config
+# variable; fall back to <prefix>/<libdir>/NetworkManager so editor plugins
+# land in the arch-specific directory (/usr/lib64/NetworkManager) where
+# NetworkManager and the connection editors look for them.
+nm_plugin_dir = libnm_dep.get_variable(pkgconfig: 'plugindir',
+                                       default_value: join_paths(get_option('prefix'), get_option('libdir'), 'NetworkManager'))
 
 prefix = get_option('prefix')
 libexecdir = join_paths(prefix, get_option('libexecdir'))
