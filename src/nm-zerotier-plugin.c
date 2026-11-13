@@ -22,6 +22,7 @@
 struct _NMZerotierPlugin {
     NMVpnServicePlugin parent;
     char    *network_id;
+    char    *last_status; /* zerotier's most recent status for it, for diagnostics */
     guint    poll_source_id;
     gint64   deadline_us;
     gboolean poll_in_flight;
@@ -210,8 +211,13 @@ poll_task_finished_cb(GObject *source, GAsyncResult *res, gpointer user_data)
         return;
     }
 
-    if (!info)
+    if (!info) {
+        g_clear_pointer(&self->last_status, g_free);
         return;
+    }
+
+    g_free(self->last_status);
+    self->last_status = g_strdup(info->status ? info->status : "");
 
     gboolean ready = (g_strcmp0(info->status, "OK") == 0 || g_strcmp0(info->status, "ONLINE") == 0)
                      && info->assigned_addresses->len > 0 && info->port_device_name
@@ -220,6 +226,22 @@ poll_task_finished_cb(GObject *source, GAsyncResult *res, gpointer user_data)
     if (ready) {
         report_ip_config(self, info);
         cancel_poll(self);
+    } else if (g_strcmp0(info->status, "ACCESS_DENIED") == 0) {
+        /* The join itself worked - the device is a member pending approval on
+         * the controller. That never resolves on its own from our side, so fail
+         * immediately with the actionable reason instead of burning the whole
+         * connect timeout on it. */
+        g_warning("zerotier: network %s reports ACCESS_DENIED: this device has joined but is "
+                  "not authorized - authorize it on the network's controller "
+                  "(e.g. my.zerotier.com) and activate the connection again",
+                  self->network_id);
+        cancel_poll(self);
+        nm_vpn_service_plugin_failure(NM_VPN_SERVICE_PLUGIN(self), NM_VPN_PLUGIN_FAILURE_CONNECT_FAILED);
+    } else {
+        g_debug("zerotier: network %s not ready yet (status=%s, addresses=%u, portDeviceName=%s)",
+                self->network_id, info->status ? info->status : "?",
+                info->assigned_addresses->len,
+                info->port_device_name ? info->port_device_name : "(none)");
     }
 
     zt_network_info_free(info);
@@ -231,9 +253,10 @@ poll_tick_cb(gpointer user_data)
     NMZerotierPlugin *self = NM_ZEROTIER_PLUGIN(user_data);
 
     if (g_get_monotonic_time() > self->deadline_us) {
-        g_warning("zerotier: timed out waiting for network %s to come online "
-                  "(is this device authorized on the network's controller?)",
-                  self->network_id);
+        g_warning("zerotier: timed out waiting for network %s to come online (last status: %s) "
+                  "- is zerotier-one running (`systemctl status zerotier-one`)?",
+                  self->network_id,
+                  (self->last_status && *self->last_status) ? self->last_status : "not joined yet");
         self->poll_source_id = 0;
         nm_vpn_service_plugin_failure(NM_VPN_SERVICE_PLUGIN(self), NM_VPN_PLUGIN_FAILURE_CONNECT_FAILED);
         return G_SOURCE_REMOVE;
@@ -329,6 +352,7 @@ start_connect(NMZerotierPlugin *self, NMConnection *connection, GError **error)
 
     g_free(self->network_id);
     self->network_id = g_strdup(network_id);
+    g_clear_pointer(&self->last_status, g_free);
 
     const char *allow_default = nm_setting_vpn_get_data_item(s_vpn, NM_ZEROTIER_KEY_ALLOW_DEFAULT);
     self->allow_default = (g_strcmp0(allow_default, "yes") == 0);
@@ -452,6 +476,7 @@ static void
 nm_zerotier_plugin_init(NMZerotierPlugin *self)
 {
     self->network_id = NULL;
+    self->last_status = NULL;
     self->poll_source_id = 0;
     self->poll_in_flight = FALSE;
     self->allow_default = FALSE;
@@ -464,6 +489,7 @@ dispose(GObject *object)
 
     cancel_poll(self);
     g_clear_pointer(&self->network_id, g_free);
+    g_clear_pointer(&self->last_status, g_free);
 
     G_OBJECT_CLASS(nm_zerotier_plugin_parent_class)->dispose(object);
 }
